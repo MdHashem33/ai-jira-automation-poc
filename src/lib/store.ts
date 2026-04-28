@@ -61,6 +61,15 @@ export function getDashboardStats(): DashboardStats {
     .map(([date, data]) => ({ date, ...data }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  const totalCostUsd = tickets.reduce((sum, t) => sum + (t.cost?.totalUsd ?? 0), 0);
+  const avgCostPerTicketUsd = total > 0 ? totalCostUsd / total : 0;
+
+  const routedBy: Record<string, number> = {};
+  for (const t of tickets) {
+    const key = t.routedBy ?? 'unresolved';
+    routedBy[key] = (routedBy[key] ?? 0) + 1;
+  }
+
   return {
     totalProcessed: total,
     autoResolved,
@@ -73,5 +82,8 @@ export function getDashboardStats(): DashboardStats {
     autoResolveRate: total > 0 ? Math.round((autoResolved / total) * 100) : 0,
     recentTickets: getAllTickets().slice(0, 10),
     processingTimeline,
+    totalCostUsd: Math.round(totalCostUsd * 1_000_000) / 1_000_000,
+    avgCostPerTicketUsd: Math.round(avgCostPerTicketUsd * 1_000_000) / 1_000_000,
+    routedBy,
   };
 }

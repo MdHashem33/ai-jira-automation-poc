@@ -79,12 +79,68 @@ export interface JiraTicket {
   customFields?: Record<string, unknown>;
 }
 
+export type DispatchCategoryName =
+  | 'billing'
+  | 'technical'
+  | 'account'
+  | 'compliance'
+  | 'feature_request'
+  | 'how_to'
+  | 'escalate';
+
+export interface DispatcherShadowResult {
+  category: DispatchCategoryName;
+  confidence: number;
+  reasoning: string;
+  requires_human_review: boolean;
+  pii_detected: boolean;
+  pii_summary: string;
+  source: 'model' | 'fallback';
+  model?: string;
+  latencyMs?: number;
+}
+
+export interface JudgeVerdictRecord {
+  agrees: boolean;
+  suggested_category?: DispatchCategoryName;
+  faithfulness: number;
+  reasoning: string;
+  model?: string;
+  latencyMs?: number;
+}
+
+export interface FaqSpecialistRecord {
+  resolved: boolean;
+  source: 'model' | 'template' | 'refused';
+  kb_article_id?: string;
+  kb_title?: string;
+  reasoning?: string;
+  model?: string;
+  latencyMs?: number;
+}
+
+export interface CostAccounting {
+  totalUsd: number;
+  byStep: Array<{ step: string; model?: string; usd: number }>;
+}
+
 export interface ProcessedTicket {
   id: string;
   channel: Channel;
   status: TicketStatus;
   email: ParsedEmail;
   aiAnalysis?: AIAnalysis;
+  dispatcherShadow?: DispatcherShadowResult;
+  judgeVerdict?: JudgeVerdictRecord;
+  faqSpecialist?: FaqSpecialistRecord;
+  cost?: CostAccounting;
+  routedBy?:
+    | 'faq_specialist'
+    | 'account_specialist'
+    | 'billing_specialist'
+    | 'legacy_decision_engine'
+    | 'jira_escalation'
+    | 'human_review';
   jiraTicket?: JiraTicket;
   jiraKey?: string;
   autoReplyContent?: string;
@@ -115,6 +171,9 @@ export interface DashboardStats {
   autoResolveRate: number;
   recentTickets: ProcessedTicket[];
   processingTimeline: { date: string; count: number; autoResolved: number }[];
+  totalCostUsd: number;
+  avgCostPerTicketUsd: number;
+  routedBy: Record<string, number>;
 }
 
 export interface PipelineConfig {

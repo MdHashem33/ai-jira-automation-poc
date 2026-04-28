@@ -1,10 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
-import { EmailInput, ProcessedTicket, ProcessingStep } from '../types';
+import { EmailInput, ProcessedTicket, ProcessingStep, CostAccounting } from '../types';
 import { parseEmail } from './emailParser';
 import { analyzeEmail } from './aiMiddleware';
 import { buildJiraPayload, createJiraTicket, uploadAttachments } from './jiraService';
 import { generateAutoReply, generateEscalationConfirmation } from './autoReply';
 import { addTicket, updateTicket } from '../store';
+import { dispatch } from '../agents/dispatcher';
+import { verifyDispatch } from '../agents/judge';
+import { attemptFaqResolution } from '../agents/faqSpecialist';
+import { attemptAccountResolution } from '../agents/accountSpecialist';
+import { attemptBillingResolution } from '../agents/billingSpecialist';
+import { appendResolution } from './kbStore';
+
+function addCost(cost: CostAccounting, step: string, model: string | undefined, usd: number | undefined) {
+  if (!usd) return;
+  cost.totalUsd = Math.round((cost.totalUsd + usd) * 1_000_000) / 1_000_000;
+  cost.byStep.push({ step, model, usd });
+}
 
 export async function processEmail(input: EmailInput): Promise<ProcessedTicket> {
   const startTime = Date.now();
@@ -12,11 +24,16 @@ export async function processEmail(input: EmailInput): Promise<ProcessedTicket> 
 
   const steps: ProcessingStep[] = [
     { step: 'Email Parsing', status: 'pending' },
-    { step: 'AI Analysis', status: 'pending' },
+    { step: 'Dispatcher', status: 'pending' },
+    { step: 'Judge (verify)', status: 'pending' },
+    { step: 'FAQ Specialist', status: 'pending' },
+    { step: 'AI Analysis (legacy)', status: 'pending' },
     { step: 'RAG Knowledge Lookup', status: 'pending' },
     { step: 'Decision Engine', status: 'pending' },
     { step: 'Action Execution', status: 'pending' },
   ];
+
+  const cost: CostAccounting = { totalUsd: 0, byStep: [] };
 
   const ticket: ProcessedTicket = {
     id: ticketId,
@@ -35,6 +52,7 @@ export async function processEmail(input: EmailInput): Promise<ProcessedTicket> 
       isReply: false,
       receivedAt: input.receivedAt || new Date().toISOString(),
     },
+    cost,
     processingSteps: steps,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -54,48 +72,202 @@ export async function processEmail(input: EmailInput): Promise<ProcessedTicket> 
     updateStep(steps, 0, 'completed', `Parsed email from ${parsedEmail.fromName}, language: ${parsedEmail.language}, reply: ${parsedEmail.isReply}`);
     updateTicket(ticketId, { email: parsedEmail, processingSteps: steps });
 
-    // Step 2: AI Analysis
+    // Step 2: Dispatcher (live routing)
     updateStep(steps, 1, 'in_progress');
+    updateTicket(ticketId, { processingSteps: steps });
+
+    const dispatchResult = await dispatch(parsedEmail);
+    addCost(cost, 'dispatcher', dispatchResult.model, dispatchResult.costUsd);
+    ticket.dispatcherShadow = {
+      category: dispatchResult.category,
+      confidence: dispatchResult.confidence,
+      reasoning: dispatchResult.reasoning,
+      requires_human_review: dispatchResult.requires_human_review,
+      pii_detected: dispatchResult.pii_detected,
+      pii_summary: dispatchResult.pii_summary,
+      source: dispatchResult.source,
+      model: dispatchResult.model,
+      latencyMs: dispatchResult.latencyMs,
+    };
+    updateStep(
+      steps,
+      1,
+      'completed',
+      `${dispatchResult.category} (${Math.round(dispatchResult.confidence * 100)}%, ${dispatchResult.source}), human-review: ${dispatchResult.requires_human_review}, PII: ${dispatchResult.pii_summary}`,
+    );
+    updateTicket(ticketId, { dispatcherShadow: ticket.dispatcherShadow, processingSteps: steps });
+
+    // Step 3: Judge — verify dispatcher decision
+    updateStep(steps, 2, 'in_progress');
+    updateTicket(ticketId, { processingSteps: steps });
+    let judgeVerdict;
+    try {
+      judgeVerdict = await verifyDispatch(parsedEmail, dispatchResult);
+      addCost(cost, 'judge', judgeVerdict.model, judgeVerdict.costUsd);
+      ticket.judgeVerdict = judgeVerdict;
+      updateStep(
+        steps,
+        2,
+        'completed',
+        `agrees=${judgeVerdict.agrees}, faithfulness=${judgeVerdict.faithfulness.toFixed(2)}${judgeVerdict.suggested_category ? `, suggested=${judgeVerdict.suggested_category}` : ''}`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      updateStep(steps, 2, 'completed', `Judge skipped: ${message} (non-blocking)`);
+    }
+    updateTicket(ticketId, { judgeVerdict: ticket.judgeVerdict, processingSteps: steps });
+
+    // Step 4: Specialist routing — pick a specialist based on dispatcher category
+    const specialistEligible =
+      dispatchResult.confidence >= 0.75 &&
+      !dispatchResult.requires_human_review &&
+      (judgeVerdict?.agrees ?? true) &&
+      (judgeVerdict?.faithfulness ?? 1) >= 0.70;
+
+    let specialistAnswer: string | null = null;
+    let specialistName: ProcessedTicket['routedBy'] | null = null;
+    let specialistKbId: string | undefined;
+
+    if (!specialistEligible) {
+      updateStep(steps, 3, 'completed', `Skipped (category=${dispatchResult.category}, human_review=${dispatchResult.requires_human_review})`);
+    } else if (dispatchResult.category === 'how_to') {
+      updateStep(steps, 3, 'in_progress');
+      updateTicket(ticketId, { processingSteps: steps });
+      const faq = await attemptFaqResolution(parsedEmail);
+      addCost(cost, 'faq_specialist', faq.model, faq.costUsd);
+      ticket.faqSpecialist = {
+        resolved: faq.resolved,
+        source: faq.source,
+        kb_article_id: faq.kb_article_id,
+        kb_title: faq.kb_title,
+        reasoning: faq.reasoning,
+        model: faq.model,
+        latencyMs: faq.latencyMs,
+      };
+      updateStep(steps, 3, 'completed', faq.resolved ? `FAQ specialist resolved via KB ${faq.kb_article_id}` : `FAQ specialist refused: ${faq.reasoning ?? ''}`);
+      if (faq.resolved && faq.answer) {
+        specialistAnswer = faq.answer;
+        specialistName = 'faq_specialist';
+        specialistKbId = faq.kb_article_id;
+      }
+    } else if (dispatchResult.category === 'account') {
+      updateStep(steps, 3, 'in_progress');
+      updateTicket(ticketId, { processingSteps: steps });
+      const account = await attemptAccountResolution(parsedEmail);
+      addCost(cost, 'account_specialist', account.model, account.costUsd);
+      updateStep(steps, 3, 'completed', account.resolved ? `Account specialist resolved (${account.sub_intent}) via KB ${account.kb_article_id}` : `Account specialist refused: ${account.reasoning ?? ''}`);
+      if (account.resolved && account.answer) {
+        specialistAnswer = account.answer;
+        specialistName = 'account_specialist' as ProcessedTicket['routedBy'];
+        specialistKbId = account.kb_article_id;
+      }
+    } else if (dispatchResult.category === 'billing') {
+      updateStep(steps, 3, 'in_progress');
+      updateTicket(ticketId, { processingSteps: steps });
+      const billing = await attemptBillingResolution(parsedEmail);
+      addCost(cost, 'billing_specialist', billing.model, billing.costUsd);
+      updateStep(
+        steps,
+        3,
+        'completed',
+        billing.resolved
+          ? `Billing specialist resolved${billing.invoice ? ` (invoice ${billing.invoice.invoice_number}, ${billing.invoice.status})` : ''}`
+          : `Billing specialist refused: ${billing.reasoning ?? ''}`,
+      );
+      if (billing.resolved && billing.answer) {
+        specialistAnswer = billing.answer;
+        specialistName = 'billing_specialist' as ProcessedTicket['routedBy'];
+        specialistKbId = billing.kb_article_id;
+      }
+    } else {
+      updateStep(steps, 3, 'completed', `No specialist for category ${dispatchResult.category}; falling back to legacy`);
+    }
+
+    if (specialistAnswer && specialistName) {
+      // Short-circuit legacy pipeline — specialist resolved end-to-end
+      updateStep(steps, 4, 'completed', 'Skipped (specialist resolved)');
+      updateStep(steps, 5, 'completed', 'Skipped (specialist resolved)');
+      updateStep(steps, 6, 'completed', `Decision: Auto-resolve via ${specialistName}`);
+      updateStep(steps, 7, 'completed', `Auto-reply drafted by ${specialistName}`);
+      ticket.status = 'resolved_auto';
+      ticket.autoReplyContent = specialistAnswer;
+      ticket.routedBy = specialistName;
+      ticket.processingTimeMs = Date.now() - startTime;
+      ticket.processingSteps = steps;
+
+      appendResolution({
+        ticketId,
+        category: dispatchResult.category,
+        patternSummary: parsedEmail.subject.slice(0, 140),
+        resolutionSteps: `${specialistKbId ?? 'unknown-kb'} applied by ${specialistName}`,
+        outcome: 'resolved_auto',
+      });
+
+      ticket.cost = cost;
+      updateTicket(ticketId, {
+        status: ticket.status,
+        autoReplyContent: ticket.autoReplyContent,
+        faqSpecialist: ticket.faqSpecialist,
+        routedBy: ticket.routedBy,
+        processingSteps: steps,
+        processingTimeMs: ticket.processingTimeMs,
+        cost,
+      });
+      console.log(`[Pipeline] ${ticketId} auto-resolved via ${specialistName} ($${cost.totalUsd.toFixed(6)})`);
+      return ticket;
+    }
+    updateTicket(ticketId, { faqSpecialist: ticket.faqSpecialist, processingSteps: steps });
+
+    // Step 5: AI Analysis (legacy path — fallback for everything the FAQ specialist did not handle)
+    updateStep(steps, 4, 'in_progress');
     updateTicket(ticketId, { processingSteps: steps });
 
     const analysis = await analyzeEmail(parsedEmail);
     ticket.aiAnalysis = analysis;
 
-    updateStep(steps, 1, 'completed', `Intent: ${analysis.intent} (${Math.round(analysis.intentConfidence * 100)}%), Priority: ${analysis.priority}, Sentiment: ${analysis.sentiment}`);
+    updateStep(steps, 4, 'completed', `Intent: ${analysis.intent} (${Math.round(analysis.intentConfidence * 100)}%), Priority: ${analysis.priority}, Sentiment: ${analysis.sentiment}`);
     updateTicket(ticketId, { aiAnalysis: analysis, processingSteps: steps });
 
-    // Step 3: RAG Knowledge Lookup
-    updateStep(steps, 2, 'in_progress');
+    // Step 6: RAG Knowledge Lookup
+    updateStep(steps, 5, 'in_progress');
     updateTicket(ticketId, { processingSteps: steps });
 
     const ragFound = analysis.ragMatch?.found || false;
     const ragScore = analysis.ragMatch?.relevanceScore || 0;
 
-    updateStep(steps, 2, 'completed', ragFound
+    updateStep(steps, 5, 'completed', ragFound
       ? `Match found: "${analysis.ragMatch?.articleTitle}" (score: ${Math.round(ragScore * 100)}%)`
       : 'No matching knowledge base article found');
     updateTicket(ticketId, { processingSteps: steps });
 
-    // Step 4: Decision Engine
-    updateStep(steps, 3, 'in_progress');
+    // Step 7: Decision Engine
+    updateStep(steps, 6, 'in_progress');
     updateTicket(ticketId, { processingSteps: steps });
 
     const autoReply = generateAutoReply(parsedEmail, analysis);
     const shouldAutoResolve = autoReply !== null;
 
-    updateStep(steps, 3, 'completed', shouldAutoResolve
-      ? 'Decision: Auto-resolve with KB article'
+    updateStep(steps, 6, 'completed', shouldAutoResolve
+      ? 'Decision: Auto-resolve with legacy KB match'
       : 'Decision: Escalate to Jira');
     updateTicket(ticketId, { processingSteps: steps });
 
-    // Step 5: Action Execution
-    updateStep(steps, 4, 'in_progress');
+    // Step 8: Action Execution
+    updateStep(steps, 7, 'in_progress');
     updateTicket(ticketId, { processingSteps: steps });
 
     if (shouldAutoResolve) {
       ticket.status = 'resolved_auto';
       ticket.autoReplyContent = autoReply;
-      updateStep(steps, 4, 'completed', 'Auto-reply generated and sent to customer');
+      ticket.routedBy = 'legacy_decision_engine';
+      updateStep(steps, 7, 'completed', 'Auto-reply generated via legacy decision engine');
+      appendResolution({
+        ticketId,
+        category: dispatchResult.category,
+        patternSummary: parsedEmail.subject.slice(0, 140),
+        resolutionSteps: 'legacy-decision-engine auto-reply',
+        outcome: 'resolved_auto',
+      });
     } else {
       const jiraPayload = buildJiraPayload(parsedEmail, analysis);
       ticket.jiraTicket = jiraPayload;
@@ -105,8 +277,8 @@ export async function processEmail(input: EmailInput): Promise<ProcessedTicket> 
       if (jiraResult.success && jiraResult.key) {
         ticket.status = 'escalated_jira';
         ticket.jiraKey = jiraResult.key;
+        ticket.routedBy = 'jira_escalation';
 
-        // Upload attachments if present
         const attachmentsWithContent = parsedEmail.attachments.filter(a => a.content);
         if (attachmentsWithContent.length > 0) {
           const attachResult = await uploadAttachments(jiraResult.key, attachmentsWithContent);
@@ -114,26 +286,36 @@ export async function processEmail(input: EmailInput): Promise<ProcessedTicket> 
         }
 
         ticket.autoReplyContent = generateEscalationConfirmation(parsedEmail, jiraResult.key);
-        updateStep(steps, 4, 'completed', `Jira ticket created: ${jiraResult.key}${attachmentsWithContent.length > 0 ? ` (${attachmentsWithContent.length} attachment(s))` : ''}`);
+        updateStep(steps, 7, 'completed', `Jira ticket created: ${jiraResult.key}${attachmentsWithContent.length > 0 ? ` (${attachmentsWithContent.length} attachment(s))` : ''}`);
+        appendResolution({
+          ticketId,
+          category: dispatchResult.category,
+          patternSummary: parsedEmail.subject.slice(0, 140),
+          resolutionSteps: `escalated to ${jiraResult.key}`,
+          outcome: 'escalated_jira',
+        });
       } else {
         ticket.status = 'failed';
-        updateStep(steps, 4, 'failed', `Jira creation failed: ${jiraResult.error}`);
+        updateStep(steps, 7, 'failed', `Jira creation failed: ${jiraResult.error}`);
       }
     }
 
     ticket.processingTimeMs = Date.now() - startTime;
     ticket.processingSteps = steps;
+    ticket.cost = cost;
 
     updateTicket(ticketId, {
       status: ticket.status,
       jiraTicket: ticket.jiraTicket,
       jiraKey: ticket.jiraKey,
       autoReplyContent: ticket.autoReplyContent,
+      routedBy: ticket.routedBy,
       processingSteps: steps,
       processingTimeMs: ticket.processingTimeMs,
+      cost,
     });
 
-    console.log(`[Pipeline] Email processed: ${ticketId} → ${ticket.status} (${ticket.processingTimeMs}ms)`);
+    console.log(`[Pipeline] Email processed: ${ticketId} → ${ticket.status} via ${ticket.routedBy} (${ticket.processingTimeMs}ms, $${cost.totalUsd.toFixed(6)})`);
     return ticket;
 
   } catch (error) {
