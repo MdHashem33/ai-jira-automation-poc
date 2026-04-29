@@ -73,3 +73,25 @@ Example (Day 1):
 - Pasting full code in the day-end summary. Link to the file.
 - Surfacing day-N-1 metrics in day-N summary without the diff. Always show the delta.
 - Submitting the same Submit-an-Update text two days in a row. Each day's update must reference what shipped that day.
+
+## End-of-session summary (mandatory at every session close)
+
+Whenever the session is ending — the user pauses, signs off, says "okay", "see you", "goodnight", "tomorrow", or any equivalent, AND any time the day's ritual is complete — emit a structured summary with three sections in this order. Never skip this; the user has explicitly requested it as the standing close-out format.
+
+**Section 1 — What is covered (cumulative).**
+Bullet list of every feature that is shipped and live on the deployed URL through this point in the sprint. Reference Verified Recipes by number. Include the current values of: macro F1, ECE, multi-run consistency, cost per resolution, channels live, specialists live, recipes published. Show the delta from the prior session if there is one.
+
+**Section 2 — What is needed (immediate next steps).**
+Bullet list of what the user must do before the next session, in priority order. Examples: rotate a token, request a budget approval, add an env var on Vercel, paste a new office-hours transcript, watch a specific portal area. If nothing is needed, state that explicitly.
+
+**Section 3 — All submissions needed.**
+Concrete, paste-ready content for every portal form that should be submitted before the next session begins. Cover at minimum:
+- Sprint Tracker weekly update (only on Fridays or when a week closes — narrative + attached file path)
+- Submit-an-Update interim box (every weekday — 2-line update with the day's metric + tomorrow's plan)
+- Agentic Recipe form (any new recipes that day — Title, Problem Statement, Solution & Approach, Hours/month, ROI Details, Category)
+- Demo Drop form (when a new demo is recorded — Title, Problem Statement, Solution & Approach, Category + .mp4 path)
+- Hours-Saved dashboard tile (when the number changes)
+
+Use the rule from the saved feedback memory: paste-ready text only, no AI-narrator voice, no "paste this into X" preamble inside the document body — those are chat-only instructions to the user.
+
+The session-close summary is always the last message before the user's next turn or sign-off.

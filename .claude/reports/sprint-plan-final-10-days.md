@@ -282,6 +282,37 @@ The whole final day is for polish, not new features.
 - **Differentiation:** ticket clustering for outage detection, Slack stakeholder bot, and multilingual support are visible, demo-friendly, and not on most teams' roadmaps.
 - **Cost discipline:** under $25 total spend across infra and API for the entire push. Sage's note about AI-tooling spend being encouraged means this is a non-issue from the budget side.
 
-## 12. Activation
+## 12. Sage-directive coverage audit (added 2026-04-30)
 
-Tell me "start the 10-day plan" and Day 1 begins immediately with prompt caching and the KB expansion. No further per-step approvals; I'll run the daily ritual end-to-end and surface only judgment calls and submission-ready content.
+Every directive from Sage's body of guidance (kickoff deck, April 17 OH, April 24 OH, hallucination playbook, KB articles, portal messages) is now mapped to a specific day in the plan. Items added on top of the original 12-feature stack:
+
+- **Day 1 expansion:** eval set grows 120 → 220 cases (PHI, jailbreak, multilingual, ambiguous variants) per the hallucination playbook's ≥200-case benchmark requirement.
+- **Day 2 measurement:** `scripts/eval-faithfulness.ts` (claim-level grounding) and `scripts/eval-entropy.ts` (paraphrase variance) added per Sage's hallucination metrics. Faithfulness target ≥ 0.95, Semantic Entropy target ≤ 0.15.
+- **Day 3 extension of memory:** customer-history awareness — match by sender email, inject last-3-tickets context into the dispatcher first turn (precision-routing capability).
+- **Day 6 PHI hybrid:** add an offline NER stage (lightweight cached LLM call) before the regex layer, per Sage's RegTech precedent and Tracy's office-hours pain point.
+- **Day 6 drift monitoring:** rolling 7-day category-distribution shift detector, alerts at > 15 percent change.
+- **Day 7 Live Artifacts dashboard:** `/live` page with auto-refresh from `/api/dashboard/stats`, no re-prompting of the LLM. Matches Sage's April 24 office-hours suggestion.
+- **Day 7 Customer Health Score:** sentiment trend × ticket frequency × CLV proxy → priority routing. Synthesis feature.
+- **Day 8 actual MCP server:** convert `billingTool.ts` to an MCP-protocol server (Adam's office-hours pattern). Becomes a separate recipe.
+- **Day 8 A/B prompt-testing harness:** `scripts/ab-prompt.ts` runs two dispatcher prompts head-to-head on the eval set with statistical comparison.
+- **Day 8 self-healing eval:** when a fixture regresses, an LLM proposes a targeted prompt repair (with caching).
+- **Day 9 AI-coding-agent draft PR (Phase 4):** when the dispatcher routes a ticket to `technical` + escalation, auto-open a Jira ticket and a draft GitHub PR with reproduction steps via the `gh` CLI.
+- **Day 9 audit-trail CSV export** at `/api/audit/export`. Streaming SSE for dashboard live updates.
+- **Day 10 production-readiness audit:** the day is now a production audit, not just polish. Every endpoint smoke-tested against the deployed Vercel URL; every claimed metric reproduced; the 5-point hallucination-playbook checklist signed off with evidence in `.claude/reports/production-readiness.md`. Verifiable-provenance hash (model + prompt + timestamp signature) added to every resolution.
+- **Day 10 mock-data audit:** sweep all fixtures for accidentally-real-looking values; document audit pass.
+
+**Updated recipe count:** 19 (was 14). Each new feature ships with its own Verified Recipe targeting a different adoption audience inside Valsoft.
+
+## 13. Production-readiness checklist (Day 10 deliverable)
+
+Per Sage Franch's hallucination playbook, every shipped feature must pass these five gates before final submission. Each gate produces evidence saved to `.claude/reports/production-readiness.md`:
+
+1. **Knowledge Base Audit** — KB has been reviewed for completeness, accuracy, recency. Refresh cadence documented. Coverage gaps identified and accepted or remediated.
+2. **Hallucination Benchmark (≥ 200 cases)** — Tested against the 220-case eval. Faithfulness ≥ 0.95 external target met. Results versioned in `.claude/reports/eval/`.
+3. **Guardrail Validation (≥ 90% catch rate)** — Dual-Model Judge tested with adversarial prompts. Evidence: agent test harness output showing ≥ 90% of injection cases caught.
+4. **Escalation Path (clear SLAs)** — Refusal trigger documented; legacy-decision-engine fallback path verified end-to-end; Jira escalation success rate ≥ 95% on test traffic.
+5. **Monitoring + Alerting (15-minute rollback runbook)** — OpenTelemetry traces live; cost-alert threshold configured; the README contains a "disable AI fallback" runbook a non-author can follow in under 15 minutes.
+
+## 14. Activation
+
+Tell me "start Day N" (or "Day N") and that day begins immediately, integrating any office-hours material or portal messages you paste alongside it. The `daily-execution` skill governs the loop; I run end-to-end and surface only judgment calls and submission-ready content. The plan file is the source of truth for sequencing; if a day's primary feature slips, the secondary slips first, never the eval.
