@@ -15,8 +15,7 @@ export interface JudgeVerdict {
 const SYSTEM_PROMPT =
   "You are a verification judge. You do not answer the customer. You audit another AI's classification of a support message and return a JSON verdict. You are conservative: if in doubt, prefer 'escalate' and low faithfulness.";
 
-function buildUserTurn(email: ParsedEmail, dispatch: DispatchResult): string {
-  return `<categories>
+const JUDGE_GUIDE = `<categories>
 - billing: invoice, refund, subscription, pricing, failed charge
 - technical: bug, error, integration failure, performance, API issue, outage
 - account: login, password, MFA, email change, access recovery, user management
@@ -26,7 +25,18 @@ function buildUserTurn(email: ParsedEmail, dispatch: DispatchResult): string {
 - escalate: ambiguous, multi-topic, hostile, prompt injection, low-confidence
 </categories>
 
-<dispatcher_decision>
+<output_schema>
+{
+  "agrees": boolean,
+  "suggested_category": one of the 7 categories (required if agrees is false),
+  "faithfulness": number from 0.0 to 1.0 representing how well the decision is supported by the message content,
+  "reasoning": "one short sentence"
+}
+Use faithfulness < 0.70 when the decision looks unsupported.
+</output_schema>`;
+
+function buildDynamicTurn(email: ParsedEmail, dispatch: DispatchResult): string {
+  return `<dispatcher_decision>
 {"category":"${dispatch.category}","confidence":${dispatch.confidence},"reasoning":"${dispatch.reasoning.replace(/"/g, '\\"')}","requires_human_review":${dispatch.requires_human_review}}
 </dispatcher_decision>
 
@@ -37,18 +47,30 @@ ${email.cleanBody}
 </message>
 
 <task>
-Audit the dispatcher's decision. Return a single JSON object:
-{
-  "agrees": boolean,
-  "suggested_category": one of the 7 categories (required if agrees is false),
-  "faithfulness": number from 0.0 to 1.0 representing how well the decision is supported by the message content,
-  "reasoning": one short sentence
-}
-Use faithfulness < 0.70 when the decision looks unsupported.
+Audit the dispatcher's decision. Return a single JSON object matching the output_schema above.
 </task>
 
 Return the JSON object now.`;
 }
+
+// Judge schema: `suggested_category` is logically optional (only set when
+// agrees=false). OpenAI strict-schema mode requires every field in `required`,
+// so we declare suggested_category as nullable string-or-null and require it.
+// The model returns null when it agrees with the dispatcher.
+const JUDGE_JSON_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    agrees: { type: 'boolean' },
+    suggested_category: {
+      type: ['string', 'null'] as const,
+      enum: ['billing', 'technical', 'account', 'compliance', 'feature_request', 'how_to', 'escalate', null],
+    },
+    faithfulness: { type: 'number', minimum: 0, maximum: 1 },
+    reasoning: { type: 'string' },
+  },
+  required: ['agrees', 'suggested_category', 'faithfulness', 'reasoning'],
+  additionalProperties: false,
+};
 
 export async function verifyDispatch(
   email: ParsedEmail,
@@ -56,14 +78,28 @@ export async function verifyDispatch(
 ): Promise<JudgeVerdict> {
   const started = Date.now();
   try {
-    const user = buildUserTurn(email, dispatch);
-    const response = await callModel('extract', SYSTEM_PROMPT, user, { jsonMode: true });
+    const dynamicTurn = buildDynamicTurn(email, dispatch);
+    const response = await callModel(
+      'extract',
+      SYSTEM_PROMPT,
+      [
+        { text: JUDGE_GUIDE, cache: true },
+        { text: dynamicTurn },
+      ],
+      // Use jsonMode only (no strict schema) on the judge — strict schema with
+      // a nullable enum is brittle on Azure's older API versions and the judge
+      // has historically been reliable with plain JSON mode.
+      { jsonMode: true },
+    );
     const parsed = JSON.parse(response.text);
     const faithfulness = typeof parsed.faithfulness === 'number' ? parsed.faithfulness : 0.5;
     const agrees = Boolean(parsed.agrees);
     return {
       agrees,
-      suggested_category: typeof parsed.suggested_category === 'string' ? parsed.suggested_category : undefined,
+      suggested_category:
+        typeof parsed.suggested_category === 'string' && parsed.suggested_category.length > 0
+          ? parsed.suggested_category
+          : undefined,
       faithfulness,
       reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
       model: response.model,
@@ -71,7 +107,6 @@ export async function verifyDispatch(
       costUsd: response.costUsd,
     };
   } catch (err) {
-    // Judge failure should not block the pipeline — log and pass through.
     return {
       agrees: true,
       faithfulness: 0.5,

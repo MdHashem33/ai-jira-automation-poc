@@ -13,6 +13,7 @@
     "eval:calibration": "tsx scripts/eval-calibration.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@azure/msal-node": "^5.0.6",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

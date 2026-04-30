@@ -107,9 +107,24 @@ Output: {"category":"account","confidence":0.87,"reasoning":"Invite-link lifecyc
 </examples>
 `.trim();
 
-function buildUserTurn(email: ParsedEmail, cleansedBody: string): string {
-  return `${GUIDE}\n\n<message>\nFROM: ${email.fromName}\nSUBJECT: ${email.subject}\nLANGUAGE: ${email.language}\nBODY:\n${cleansedBody}\n</message>\n\nReturn the JSON object now.`;
+function buildDynamicTurn(email: ParsedEmail, cleansedBody: string): string {
+  return `<message>\nFROM: ${email.fromName}\nSUBJECT: ${email.subject}\nLANGUAGE: ${email.language}\nBODY:\n${cleansedBody}\n</message>\n\nReturn the JSON object now.`;
 }
+
+const DISPATCH_JSON_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    category: {
+      type: 'string',
+      enum: ['billing', 'technical', 'account', 'compliance', 'feature_request', 'how_to', 'escalate'],
+    },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    reasoning: { type: 'string' },
+    requires_human_review: { type: 'boolean' },
+  },
+  required: ['category', 'confidence', 'reasoning', 'requires_human_review'],
+  additionalProperties: false,
+};
 
 export async function dispatch(email: ParsedEmail): Promise<DispatchResult> {
   const redacted = redact(`${email.subject}\n${email.cleanBody}`);
@@ -120,8 +135,20 @@ export async function dispatch(email: ParsedEmail): Promise<DispatchResult> {
   }
 
   try {
-    const user = buildUserTurn(email, redacted.cleansed);
-    const response = await callModel('dispatch', SYSTEM_PROMPT, user, { jsonMode: true });
+    const dynamicTurn = buildDynamicTurn(email, redacted.cleansed);
+    // Static GUIDE block is marked cacheable; the dynamic per-ticket content is not.
+    // Anthropic: cache_control: ephemeral on the GUIDE block (5-min TTL).
+    // OpenAI/Azure: automatic prefix caching kicks in once the static prefix
+    //   exceeds ~1024 tokens.
+    const response = await callModel(
+      'dispatch',
+      SYSTEM_PROMPT,
+      [
+        { text: GUIDE, cache: true },
+        { text: dynamicTurn },
+      ],
+      { jsonSchema: { name: 'dispatch_result', schema: DISPATCH_JSON_SCHEMA }, jsonMode: true },
+    );
     const parsed = JSON.parse(response.text);
 
     const category = (parsed.category as DispatchCategory) ?? 'escalate';
