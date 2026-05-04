@@ -76,6 +76,41 @@ export function topMatch(query: string, minScore = 3): SearchHit | null {
   return first.score >= minScore ? first : null;
 }
 
+/**
+ * Two-stage retrieval entry point. Pulls a wider candidate set with the
+ * keyword index (CANDIDATE_K), then defers to the reranker for the final K.
+ * Honors the same `minScore` floor on the keyword stage so semantically
+ * irrelevant articles never enter the rerank pool.
+ */
+export async function searchKBReranked(
+  query: string,
+  topK = 3,
+  options: { candidateK?: number; minScore?: number } = {},
+): Promise<SearchHit[]> {
+  const { rerank } = await import('./reranker');
+  const candidateK = options.candidateK ?? 20;
+  const minScore = options.minScore ?? 1;
+  const stageOne = searchKB(query, candidateK).filter((h) => h.score >= minScore);
+  if (stageOne.length === 0) return [];
+  return rerank(query, stageOne, topK);
+}
+
+export async function topMatchReranked(query: string, minScore = 3): Promise<SearchHit | null> {
+  // Pull stage-1 candidates first so we can preserve the original keyword score
+  // for gating; the rerank only changes ordering, not the floor that decides
+  // whether the FAQ specialist is even allowed to attempt a draft.
+  const stageOne = searchKB(query, 20).filter((h) => h.score >= 1);
+  if (stageOne.length === 0) return null;
+  const { rerank } = await import('./reranker');
+  const reranked = await rerank(query, stageOne, 1);
+  const first = reranked[0];
+  if (!first) return null;
+  const keywordScoreById = new Map(stageOne.map((h) => [h.article.id, h.score]));
+  const originalKeywordScore = keywordScoreById.get(first.article.id) ?? 0;
+  if (originalKeywordScore < minScore) return null;
+  return { ...first, score: originalKeywordScore };
+}
+
 export function appendResolution(record: Omit<ResolutionRecord, 'id' | 'createdAt'>): ResolutionRecord {
   const full: ResolutionRecord = {
     ...record,

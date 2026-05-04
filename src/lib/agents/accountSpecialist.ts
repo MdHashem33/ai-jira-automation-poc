@@ -1,5 +1,5 @@
 import { callModel } from '../ai/client';
-import { topMatch } from '../services/kbStore';
+import { topMatchReranked } from '../services/kbStore';
 import type { ParsedEmail } from '../types';
 
 export type AccountSubIntent =
@@ -38,7 +38,7 @@ function classifySubIntent(email: ParsedEmail): AccountSubIntent {
 
 export async function attemptAccountResolution(email: ParsedEmail): Promise<AccountResult> {
   const subIntent = classifySubIntent(email);
-  const match = topMatch(`${email.subject}\n${email.cleanBody}`, 3);
+  const match = await topMatchReranked(`${email.subject}\n${email.cleanBody}`, 3);
 
   if (!match) {
     return {

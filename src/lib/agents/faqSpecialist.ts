@@ -1,5 +1,5 @@
 import { callModel } from '../ai/client';
-import { topMatch, type KBArticle } from '../services/kbStore';
+import { topMatchReranked, type KBArticle } from '../services/kbStore';
 import type { ParsedEmail } from '../types';
 
 export type FaqSource = 'model' | 'template' | 'refused';
@@ -52,7 +52,7 @@ export async function attemptFaqResolution(
   email: ParsedEmail,
   options: { minScore?: number } = {},
 ): Promise<FaqResult> {
-  const match = topMatch(`${email.subject}\n${email.cleanBody}`, options.minScore ?? 4);
+  const match = await topMatchReranked(`${email.subject}\n${email.cleanBody}`, options.minScore ?? 4);
   if (!match) {
     return {
       resolved: false,

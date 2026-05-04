@@ -1,5 +1,5 @@
 import { callModel } from '../ai/client';
-import { topMatch } from '../services/kbStore';
+import { topMatchReranked } from '../services/kbStore';
 import { extractInvoiceNumber, lookupInvoice, type InvoiceRecord } from '../services/billingTool';
 import type { ParsedEmail } from '../types';
 
@@ -22,7 +22,7 @@ const SYSTEM_PROMPT =
 export async function attemptBillingResolution(email: ParsedEmail): Promise<BillingResult> {
   const invoiceNumber = extractInvoiceNumber(`${email.subject}\n${email.cleanBody}`);
   const invoice = invoiceNumber ? lookupInvoice(invoiceNumber) : undefined;
-  const match = topMatch(`${email.subject}\n${email.cleanBody}`, 3);
+  const match = await topMatchReranked(`${email.subject}\n${email.cleanBody}`, 3);
 
   const started = Date.now();
   const userTurn = `<tool_result name="lookupInvoice">
