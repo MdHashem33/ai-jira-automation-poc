@@ -141,22 +141,23 @@ Effort: 1 day.
 Cost impact: ~$0.05 per CI run.
 Recipe: yes — *CI for Multi-Agent Eval Sets*
 
-## 4. Day-by-day schedule
+## 4. Day-by-day schedule (revised 2026-05-04 to align with the 8-phase playbook)
 
-Each day produces: code changes, an updated weekly metric, a 2-line portal interim update at end of day, and one Verified Recipe submission.
+The Fluent Agentic Support Playbook (Alame & Radovan, Feb 2026) is the rubric. The closing week ships ONE phase per day so every Submit-an-Update names a different phase. Days 1–2 already shipped under the prior plan; days 3–7 below replace the prior days 3–10 to map cleanly to phases that are still partial or unstarted.
 
-| Day | Date | Headline | Ships | Recipe |
+Each day produces: code changes, an updated weekly metric, a 2-line phase-tagged portal interim update at end of day, and one Verified Recipe submission whose title opens with the phase number.
+
+| Day | Date | Phase advanced | Ships | Recipe |
 |---|---|---|---|---|
-| 1 | Thu 2026-04-30 | Cost-cut foundation + Judge fix | F1 prompt caching · F2 strict JSON · G1 Anthropic Judge wired · G4 KB +8 articles | *Prompt-Caching for Multi-Agent Pipelines* |
-| 2 | Fri 2026-05-01 | Retrieval depth + cache layer | F4 cross-encoder rerank · F3 semantic cache | *Semantic Caching for Support Auto-Resolution* + weekly report submission |
-| 3 | Sat 2026-05-02 | Conversation memory | G2 thread-aware memory · agent-test harness re-run | *Thread-Aware Memory for Support Replies* |
-| 4 | Sun 2026-05-03 | Cascading | F7 model cascading via calibration | *Calibration-Driven Model Cascading* |
-| 5 | Mon 2026-05-04 | Reflection loop | F6 multi-agent reflection (selective) | *Reflection Loops Without Cost Explosion* |
-| 6 | Tue 2026-05-05 | Outage detection | F5 ticket clustering + auto-incident | *Outage Detection from Ticket Clusters* |
-| 7 | Wed 2026-05-06 | Sentiment + observability | F8 sentiment/churn routing · F9 OpenTelemetry | *Sentiment + Churn Routing* and *Observability for Multi-Agent Pipelines* |
-| 8 | Thu 2026-05-07 | Stakeholder intelligence | F10 Slack bot · F12 CI eval suite | *Stakeholder Intelligence Layer in Slack* and *CI for Multi-Agent Eval Sets* |
-| 9 | Fri 2026-05-08 | Multilingual + final polish | F11 multilingual · final demo recording across all features | *Multilingual Support Without a Translation Pipeline* + final weekly report |
-| 10 | Sat 2026-05-09 | Submission package | Final Verified Recipe consolidation, demo video for the full sprint, executive summary | *Bootstrapping a Support KB from Resolution Logs* |
+| 1 | Thu 2026-04-30 | Phase 1 + 2 hardening | F1 prompt caching · F2 strict JSON · G1 Anthropic Judge wired · G4 KB +8 articles | *Phase 1 — Prompt-Caching for Multi-Agent Pipelines* |
+| 2 | Mon 2026-05-04 | Phase 3 hardening | F4 cross-encoder rerank · F3 semantic cache | *Phase 3 — Semantic Caching for Support Auto-Resolution* and *Phase 3 — Two-Stage Retrieval for Support RAG* |
+| 3 | Tue 2026-05-05 | **Phase 6 — Documentation Flywheel** | Auto-KB-write-back from successful resolutions · G2 thread-aware memory on reply chains | *Phase 6 — Documentation Flywheel that Auto-Updates the Knowledge Base* |
+| 4 | Wed 2026-05-06 | **Phase 8 — Measure, Iterate, Expand** | Full KPI dashboard suite (AI resolution rate, repeat contact rate, escalation-to-fix time, proactive detection rate, KB growth, query adoption, CSAT proxy, cost per ticket) | *Phase 8 — Eight KPIs as Live Dashboard Tiles* |
+| 5 | Thu 2026-05-07 | **Phase 5 — Proactive Error Detection** | F5 ticket clustering + auto-incident parent ticket; rolling 5σ alarm | *Phase 5 — Proactive Outage Detection from Ticket Clusters* |
+| 6 | Fri 2026-05-08 | **Phase 7 — Stakeholder Intelligence Layer** | F10 Slack bot for natural-language queries over `/api/dashboard/stats`; daily 8 AM digest | *Phase 7 — Stakeholder Intelligence Layer in Slack* + weekly report submission |
+| 7 | Sat 2026-05-09 | **Phase 4 — Automated Developer Escalation** + final submission | AI-coding-agent draft PR via `gh` CLI when dispatcher routes technical+escalate; final demo across all 8 phases; executive summary | *Phase 4 — AI-Assisted Bug Investigation with Draft PRs* + final submission package |
+
+Each day-end Submit-an-Update opens with the phase number: "Phase 6 shipped: …", "Phase 8 shipped: …", and so on. The final-day executive summary opens with the phase-coverage table and walks the judges through Phase 1 → Phase 8 in order.
 
 ### Day 1 in detail (template for every day)
 

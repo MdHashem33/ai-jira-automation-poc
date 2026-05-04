@@ -7,6 +7,19 @@ description: Use when the user says "Day N", "start Day N", "do today's day", or
 
 The full 10-day plan lives at `.claude/reports/sprint-plan-final-10-days.md`. Read it before executing — it is the authoritative day-by-day schedule.
 
+## Phase tagging is mandatory (8-phase Agentic Support Playbook)
+
+The Fluent Agentic Support Playbook (Alame & Radovan, Feb 2026) is the rubric judges grade against. Every shipped feature belongs to exactly one of the 8 phases (Baseline & Tooling, Knowledge Base, Tier 1 Agent, Auto Dev Escalation, Proactive Detection, Documentation Flywheel, Stakeholder Layer, Measure & Iterate). The full per-phase coverage map lives in memory at `project_eight_phase_mapping.md`.
+
+For every day's outputs:
+
+- Recipe **title** opens with the phase: `Phase 6 — Documentation Flywheel that Auto-Updates the Knowledge Base`. The filename can stay topical.
+- Submit-an-Update text opens with the phase: `Phase 6 shipped: ...`
+- Demo Drop **title** opens with the phase.
+- Agentic Recipe form **Title** field opens with the phase.
+- Each daily build maps to ONE primary phase. If a feature spans two phases, pick the one it most advances and note the other in the recipe body.
+- The day-end summary names the phase advanced and how much of that phase is now covered (in-progress / complete).
+
 ## Trigger
 
 When the user says any of:

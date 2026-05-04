@@ -1,4 +1,4 @@
-# Verified Recipe — Semantic Caching for Support Auto-Resolution
+# Verified Recipe — Phase 3: Semantic Caching for Support Auto-Resolution
 
 **Author:** Mohamad Hashem (JBL Solutions)
 **Sprint:** Fluent Agentic Games — final week

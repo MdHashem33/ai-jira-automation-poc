@@ -25,16 +25,16 @@ Source: Fluent Knowledge Base, "AI Playbooks" article. Each phase builds on the 
 - **Phase 4 rollout gate:** review every auto-created engineering ticket for the first two weeks before trusting the pipeline.
 - **Phase 8 KPIs** (the eight metrics): AI Resolution Rate, Repeat Contact Rate, Escalation-to-Fix Time, Proactive Detection Rate, Knowledge Base Growth, Stakeholder Query Adoption, CSAT, Cost Per Ticket.
 
-## Our POC's phase mapping (update as we move)
+## Our POC's phase mapping (last updated 2026-05-04, end of Day 2)
 
-- **Phase 1** — partial. We have ticket volume, categories via dispatcher, processing time; missing: CSAT, cost per ticket, repeat-contact rate. Fill these gaps as we get real usage data.
-- **Phase 2** — partial. 7 KB articles live but hardcoded in TypeScript. Flywheel (Phase 6) blocks on CMS migration.
-- **Phase 3** — active. Dispatcher at F1 0.940 (> 85% gate). Shadow-mode today; flip to live routing in Week 3. Legacy decision engine is the fallback during the two-week review window.
-- **Phase 4** — partial. Pipeline already auto-escalates to Jira with full context; what's missing is the AI-coding-agent draft PR leg.
-- **Phase 5** — not started. Planned Week 4 (monitoring hook → auto-ticket).
-- **Phase 6** — not started. Planned once the KB lives in a CMS (Week 3–4).
-- **Phase 7** — not started. A Slack/WhatsApp query layer is a high-velocity Week 4 stretch item.
-- **Phase 8** — always on. Track the 8 metrics in every weekly report; add faithfulness and semantic entropy as the internal companions.
+- **Phase 1** — covered. 220-case eval, dispatcher F1 0.937, ECE 0.017, cost per ticket on the dashboard. CSAT/repeat-contact-rate proxies still pending and will be filled in Day 4 (Phase 8 KPI suite). Detailed metrics live in `.claude/reports/phase-1-baseline.md`.
+- **Phase 2** — covered. 15 KB articles in `fixtures/kb/articles.jsonl`; structured, deduped, keyword-indexed, and now reranked at retrieval time via two-stage retrieval (Day 2).
+- **Phase 3** — covered. Dispatcher F1 0.937 (> 85% gate), three live specialists (FAQ, account, billing), four channels (email/voice/screenshot/monitor), every decision logged. Hardened on Day 2 with semantic cache + cross-encoder rerank.
+- **Phase 4** — partial. Jira escalation live with full context; AI-coding-agent draft PR scheduled Day 7 (final).
+- **Phase 5** — scheduled Day 5 (ticket clustering + outage auto-incident; rolling 5σ alarm).
+- **Phase 6** — partial. Resolution log writes already; auto-KB-write-back from successful resolutions scheduled Day 3.
+- **Phase 7** — scheduled Day 6 (Slack bot for natural-language queries over `/api/dashboard/stats` + 8 AM digest).
+- **Phase 8** — partial. Cost dashboard tile + agent test harness live; full 8-KPI dashboard suite scheduled Day 4.
 
 ## How to apply
 

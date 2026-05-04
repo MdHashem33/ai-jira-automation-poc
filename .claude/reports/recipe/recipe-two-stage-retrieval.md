@@ -1,4 +1,4 @@
-# Verified Recipe — Two-Stage Retrieval for Support RAG
+# Verified Recipe — Phase 2: Two-Stage Retrieval for Support RAG
 
 **Author:** Mohamad Hashem (JBL Solutions)
 **Sprint:** Fluent Agentic Games — final week
