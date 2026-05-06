@@ -276,6 +276,95 @@ export default function Dashboard() {
   );
 }
 
+interface Phase8KpiTile {
+  key: string;
+  phase: number;
+  label: string;
+  value: number | string;
+  unit?: string;
+  target?: number | string;
+  helpText: string;
+}
+
+interface Phase8KpiSnapshot {
+  generatedAt: string;
+  totals: {
+    tickets: number;
+    autoResolved: number;
+    escalated: number;
+    failed: number;
+    kbArticles: number;
+    cachedResolutions: number;
+    resolutionLogEntries: number;
+  };
+  tiles: Phase8KpiTile[];
+}
+
+function Phase8KpiPanel() {
+  const [snapshot, setSnapshot] = useState<Phase8KpiSnapshot | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchKpis = async () => {
+      try {
+        const res = await fetch('/api/dashboard/kpis', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as Phase8KpiSnapshot;
+        if (!cancelled) setSnapshot(data);
+      } catch {
+        // Endpoint optional — if it fails the panel just stays empty.
+      }
+    };
+    fetchKpis();
+    const interval = setInterval(fetchKpis, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  if (!snapshot) {
+    return (
+      <div className="card">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+          Phase 8 — Measure, Iterate, Expand
+        </h3>
+        <p className="text-xs text-gray-500">Loading KPIs…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-baseline justify-between mb-4">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+          Phase 8 — Measure, Iterate, Expand
+        </h3>
+        <p className="text-[10px] text-gray-600">
+          {snapshot.totals.tickets} tickets · {snapshot.totals.kbArticles} KB · {snapshot.totals.cachedResolutions} cached
+        </p>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {snapshot.tiles.map((tile) => (
+          <div key={tile.key} className="card-hover" title={tile.helpText}>
+            <div className="flex items-baseline justify-between mb-1">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider">{tile.label}</p>
+              <span className="text-[9px] text-gray-600">P{tile.phase}</span>
+            </div>
+            <p className="text-xl font-bold text-white">
+              {tile.value}
+              {tile.unit ? <span className="text-xs font-normal text-gray-500 ml-1">{tile.unit}</span> : null}
+            </p>
+            {tile.target !== undefined ? (
+              <p className="text-[10px] text-gray-500 mt-1">target: {tile.target}</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DashboardView({ stats, tickets }: { stats: DashboardStats | null; tickets: ProcessedTicket[] }) {
   if (!stats) {
     return (
@@ -335,6 +424,9 @@ function DashboardView({ stats, tickets }: { stats: DashboardStats | null; ticke
           </div>
         ))}
       </div>
+
+      <Phase8KpiPanel />
+
 
       {/* Priority & Intent Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
