@@ -101,6 +101,27 @@ Two submission boxes — don't confuse them:
 **D. Dashboard → Hours Saved**
 - Log the week's claim with the math from the report.
 
+**E. New Submission → Agentic Recipe** (Verified Recipe form — cumulative, scores Knowledge Sharing)
+The portal's New Submission form has a dropdown set to "Agentic Recipe" and these fields:
+- **Agentic Recipe Title** — short, descriptive name of the pattern (not the project).
+- **Problem Statement** — the concrete pain the recipe solves; reference the horror stories where appropriate.
+- **Solution & Approach** — the architecture in 1–2 paragraphs: dispatcher → judge → specialists → refusal trigger → multi-channel.
+- **Hours Saved (Monthly)** — single number. Use the same math as the weekly report (`tickets per week × time-per-ticket × 4.33 weeks/month`).
+- **ROI Details** — dollar value per year + the math (hours × loaded rate × 12), and the LLM cost contrast.
+- **Category** — usually "Customer Support" for this project.
+
+Always include this form in the end-of-week handoff. Pull the field content directly from `.claude/reports/recipe/recipe.md` so the recipe submission stays in sync with the recipe document.
+
+**F. New Submission → Demo Drop** (structured form — submitted weekly)
+The portal's New Submission form also has a "Demo Drop" type with these fields:
+- **Demo Drop Title** — specific, action-oriented (not "Demo" — generic titles get rejected; one such submission was rejected on 2026-04-20).
+- **Problem Statement** — the failure mode the demo proves we have addressed.
+- **Solution & Approach** — what was on screen and the key takeaways.
+- **Category** — usually "Customer Support".
+- File upload (if present in the UI) for the .mp4.
+
+Pull Demo Drop field content from the week's recording shot list, not the recipe. Demo Drops are submitted **every week** because each week's demo shows new capability.
+
 ### 6. Registry + memory
 
 ```bash
