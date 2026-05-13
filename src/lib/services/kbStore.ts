@@ -21,7 +21,8 @@ export interface ResolutionRecord {
 }
 
 const KB_PATH = path.join(process.cwd(), 'fixtures', 'kb', 'articles.jsonl');
-const RESOLUTIONS_PATH = path.join(process.cwd(), 'fixtures', 'resolutions', 'log.jsonl');
+const WRITABLE_ROOT = process.env.VERCEL ? '/tmp/jbl-fixtures' : path.join(process.cwd(), 'fixtures');
+const RESOLUTIONS_PATH = path.join(WRITABLE_ROOT, 'resolutions', 'log.jsonl');
 
 let cached: KBArticle[] | null = null;
 
@@ -117,8 +118,12 @@ export function appendResolution(record: Omit<ResolutionRecord, 'id' | 'createdA
     id: `res-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
   };
-  fs.mkdirSync(path.dirname(RESOLUTIONS_PATH), { recursive: true });
-  fs.appendFileSync(RESOLUTIONS_PATH, JSON.stringify(full) + '\n');
+  try {
+    fs.mkdirSync(path.dirname(RESOLUTIONS_PATH), { recursive: true });
+    fs.appendFileSync(RESOLUTIONS_PATH, JSON.stringify(full) + '\n');
+  } catch (err) {
+    console.warn(`[kbStore] resolution-log write skipped (non-fatal): ${(err as Error).message}`);
+  }
   return full;
 }
 

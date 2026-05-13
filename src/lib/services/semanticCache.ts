@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { embed, cosine, isEmbeddingConfigured } from './embeddings';
 
-const CACHE_PATH = path.join(process.cwd(), 'fixtures', 'cache', 'semantic-cache.jsonl');
+const CACHE_ROOT = process.env.VERCEL ? '/tmp/jbl-fixtures' : path.join(process.cwd(), 'fixtures');
+const CACHE_PATH = path.join(CACHE_ROOT, 'cache', 'semantic-cache.jsonl');
 const DEFAULT_THRESHOLD = Number(process.env.SEMANTIC_CACHE_THRESHOLD || 0.93);
 
 export interface SemanticCacheRecord {
@@ -44,8 +45,12 @@ function ensureLoaded(): SemanticCacheRecord[] {
 }
 
 function persist(records: SemanticCacheRecord[]): void {
-  fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
-  fs.writeFileSync(CACHE_PATH, records.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  try {
+    fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
+    fs.writeFileSync(CACHE_PATH, records.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  } catch (err) {
+    console.warn(`[semanticCache] persist skipped (non-fatal): ${(err as Error).message}`);
+  }
 }
 
 export function isSemanticCacheConfigured(): boolean {
